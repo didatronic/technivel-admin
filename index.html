@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Technivel Master Dashboard</title>
-    
+    <title>Technivel Master Center</title>
+
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -51,17 +51,20 @@
         }
 
         .card:hover { transform: translateY(-5px); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .card-title { font-size: 1.2rem; font-weight: bold; margin: 0; }
-        .card-status { font-size: 0.8rem; padding: 4px 8px; border-radius: 12px; font-weight: bold; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         
+        .card-title { font-size: 1.2rem; font-weight: bold; margin: 0; cursor: pointer; transition: color 0.2s;}
+        .card-title:hover { color: var(--accent); }
+        
+        .card-status { font-size: 0.8rem; padding: 4px 8px; border-radius: 12px; font-weight: bold; }
+
         .level-display { font-size: 3rem; font-weight: bold; text-align: center; margin: 10px 0; }
         .last-update { font-size: 0.75rem; color: var(--text-muted); text-align: center; }
 
         /* Cores de Status dos Cards */
         .status-online { border-top-color: var(--success); }
         .status-online .card-status { background: rgba(16, 185, 129, 0.2); color: var(--success); }
-        
+
         .status-offline { border-top-color: var(--offline); opacity: 0.7; }
         .status-offline .card-status { background: rgba(100, 116, 139, 0.2); color: var(--offline); }
 
@@ -90,7 +93,7 @@
             border: 1px solid var(--text-muted); font-family: inherit;
             outline: none; cursor: pointer;
         }
-        
+
         .chart-container { position: relative; height: 400px; width: 100%; }
     </style>
 </head>
@@ -115,20 +118,25 @@
     </div>
 
     <script>
-	// --- PROTEÇÃO DE ACESSO ---
-const SENHA_MESTRA = "187720"; // ESCOLHA A SUA SENHA AQUI
-let acesso = localStorage.getItem("technivel_acesso");
+        // ==========================================
+        // 0. PROTEÇÃO DE ACESSO (SENHA DO PAINEL)
+        // ==========================================
+        const SENHA_MESTRA = "1234"; // Mude para a sua senha secreta
+        let acesso = localStorage.getItem("technivel_acesso");
 
-if (acesso !== "concedido") {
-    const tentativa = prompt("Digite a Senha Mestra para aceder ao Painel:");
-    if (tentativa === SENHA_MESTRA) {
-        localStorage.setItem("technivel_acesso", "concedido");
-    } else {
-        alert("Senha Incorreta!");
-        window.location.href = "about:blank"; // Fecha ou limpa a página
-    }
-}
-// 1. CONFIGURAÇÃO DO FIREBASE
+        if (acesso !== "concedido") {
+            const tentativa = prompt("🔒 Área Restrita. Digite a Senha Mestra:");
+            if (tentativa === SENHA_MESTRA) {
+                localStorage.setItem("technivel_acesso", "concedido");
+            } else {
+                alert("Senha Incorreta!");
+                window.location.href = "about:blank"; // Limpa a tela se errar
+            }
+        }
+
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
         const firebaseConfig = {
             databaseURL: "https://technivel-master-default-rtdb.firebaseio.com",
             projectId: "technivel-master"
@@ -136,11 +144,12 @@ if (acesso !== "concedido") {
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Variáveis globais
         let clientesData = {};
         let myChart = null;
 
-        // 2. ESCUTANDO O BANCO DE DADOS EM TEMPO REAL
+        // ==========================================
+        // 2. ESCUTAR BANCO DE DADOS EM TEMPO REAL
+        // ==========================================
         db.ref('clientes').on('value', (snapshot) => {
             clientesData = snapshot.val() || {};
             renderizarCards();
@@ -150,20 +159,27 @@ if (acesso !== "concedido") {
             if (selectedId) atualizarGrafico();
         });
 
-        // --- NOVA FUNÇÃO: RENOMEAR CLIENTE ---
-        function renomearCliente(id, nomeAtual) {
-            // Abre uma janelinha nativa pedindo o nome
-            const novoNome = prompt(`Digite o nome do cliente para a caixa (ID: ${id}):`, nomeAtual === id ? "" : nomeAtual);
+        // ==========================================
+        // 3. FUNÇÃO: RENOMEAR E CADASTRAR E-MAIL
+        // ==========================================
+        function renomearCliente(id, nomeAtual, emailAtual) {
+            const novoNome = prompt(`Digite o nome do cliente (ID: ${id}):`, nomeAtual === id ? "" : nomeAtual);
             
-            // Se você digitou algo e deu OK, ele salva no Firebase!
             if (novoNome !== null && novoNome.trim() !== "") {
-                db.ref('clientes/' + id).update({
-                    nome: novoNome.trim()
-                });
+                const novoEmail = prompt(`Qual o e-mail do cliente ${novoNome}?\n(Deixe em branco se não quiser que ele receba os alertas da caixa)`, emailAtual || "");
+                
+                if (novoEmail !== null) {
+                    db.ref('clientes/' + id).update({
+                        nome: novoNome.trim(),
+                        email_cliente: novoEmail.trim()
+                    });
+                }
             }
         }
 
-        // 3. DESENHAR OS CARDS NA TELA
+        // ==========================================
+        // 4. DESENHAR OS CARDS NA TELA
+        // ==========================================
         function renderizarCards() {
             const container = document.getElementById('cards-container');
             container.innerHTML = '';
@@ -180,33 +196,32 @@ if (acesso !== "concedido") {
                 const statusStr = dados.status; 
                 const ultima = dados.ultima_leitura || "Desconhecido";
                 
-                // Puxa o nome salvo, ou usa o ID se ainda não tiver nome
                 const nomeCliente = dados.nome || id;
+                const emailCliente = dados.email_cliente || ""; 
                 
-                let cardClass = "status-online";
+                let cardClass = "status-online"; 
                 let statusBadge = "OK";
 
-                if (statusStr === "OFFLINE") {
-                    cardClass = "status-offline";
-                    statusBadge = "CAIU";
-                } else if (nivel <= 25) {
-                    cardClass = "status-danger";
-                    statusBadge = "CRÍTICO";
-                } else if (nivel <= 50) {
-                    cardClass = "status-warning";
-                    statusBadge = "ALERTA";
+                if (statusStr === "OFFLINE") { 
+                    cardClass = "status-offline"; statusBadge = "CAIU"; 
+                } else if (nivel <= 25) { 
+                    cardClass = "status-danger"; statusBadge = "CRÍTICO"; 
+                } else if (nivel <= 50) { 
+                    cardClass = "status-warning"; statusBadge = "ALERTA"; 
                 }
 
-                // Note o onclick no título chamando a função de renomear e o ID pequeno embaixo
                 const html = `
                     <div class="card ${cardClass}">
                         <div class="card-header">
-                            <h3 class="card-title" onclick="renomearCliente('${id}', '${nomeCliente}')" style="cursor: pointer;" title="Clique para renomear">
+                            <h3 class="card-title" onclick="renomearCliente('${id}', '${nomeCliente}', '${emailCliente}')" title="Clique para editar Nome e E-mail">
                                 ${nomeCliente} ✏️
                             </h3>
                             <span class="card-status">${statusBadge}</span>
                         </div>
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 10px;">ID: ${id}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">ID: ${id}</div>
+                        <div style="font-size: 0.65rem; color: var(--accent); margin-bottom: 10px; height: 12px;">
+                            ${emailCliente ? "✉️ " + emailCliente : "Sem e-mail cadastrado"}
+                        </div>
                         <div class="level-display">${statusStr === "OFFLINE" ? "--" : nivel}%</div>
                         <div class="last-update">Atualizado: ${ultima}</div>
                     </div>
@@ -215,7 +230,9 @@ if (acesso !== "concedido") {
             });
         }
 
-        // 4. ATUALIZAR A LISTA DO GRÁFICO (DROPDOWN)
+        // ==========================================
+        // 5. ATUALIZAR A LISTA DO GRÁFICO (DROPDOWN)
+        // ==========================================
         function atualizarDropdownList() {
             const selector = document.getElementById('client-selector');
             const valorAtual = selector.value;
@@ -224,7 +241,7 @@ if (acesso !== "concedido") {
             
             Object.keys(clientesData).forEach(id => {
                 const dados = clientesData[id];
-                const nomeCliente = dados.nome || id; // Mostra o nome bonito no dropdown também
+                const nomeCliente = dados.nome || id;
                 
                 const opt = document.createElement('option');
                 opt.value = id;
@@ -234,13 +251,16 @@ if (acesso !== "concedido") {
             });
         }
 
-        // 5. DESENHAR O GRÁFICO HISTÓRICO
+        // ==========================================
+        // 6. DESENHAR O GRÁFICO HISTÓRICO
+        // ==========================================
         function atualizarGrafico() {
             const id = document.getElementById('client-selector').value;
             if (!id || !clientesData[id] || !clientesData[id].historico) return;
 
             const historicoObj = clientesData[id].historico;
             const registros = Object.values(historicoObj).sort((a, b) => a.timestamp - b.timestamp);
+            
             const labels = [];
             const dadosNivel = [];
             const registrosFiltrados = registros.slice(-30);
@@ -257,7 +277,6 @@ if (acesso !== "concedido") {
             Chart.defaults.color = '#94a3b8';
             Chart.defaults.font.family = "'Montserrat', sans-serif";
 
-            // Pega o nome do cliente para colocar no título do gráfico
             const nomeCliente = clientesData[id].nome || id;
 
             myChart = new Chart(ctx, {
